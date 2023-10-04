@@ -1,0 +1,395 @@
+---
+title: "Data 621 - HW2"
+date: "Oct 14, 2023"
+output: 
+  html_document:
+    toc: true
+    css: style.css
+---
+
+**Group Members**
+
+- Jaya Veluri
+- Khyati Naik
+- Mahmud Hasan
+- Tage Singh
+
+```{r,warning=FALSE}
+library(tidyverse)
+```
+
+## 1. Download the classification output data set
+
+```{r}
+# URL and CSV file names
+url <- "https://raw.githubusercontent.com/Naik-Khyati/data_621/main/hw2/input/"
+csv_name <- "classification-output-data"
+
+# 1. Read the CSV files into data frames
+clas_out_dt <- read_csv(paste0(url, csv_name, ".csv"))
+glimpse(clas_out_dt)
+
+```
+
+## 2. Use the table() function to get the raw confusion matrix for this scored dataset. Make sure you understand the output. In particular, do the rows represent the actual or predicted class? The columns?
+
+
+```{r}
+# Create a confusion matrix
+confusion_matrix <- table(clas_out_dt$class, clas_out_dt$scored.class)
+
+# Print the confusion matrix
+print(confusion_matrix)
+```
+The rows represent the actual or true class labels (in this case, the "class" column).
+
+The columns represent the predicted class labels (in this case, the "scored.class" column).
+
+The confusion matrix allows us to see how well your model performed in terms of classifying observations into their actual classes. We can calculate various performance metrics, such as accuracy, precision, recall, and F1-score, based on the values in the confusion matrix.
+
+## 3. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the accuracy of the predictions.
+
+```{r}
+calculate_accuracy <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Positives (TP), False Positives (FP), True Negatives (TN), and False Negatives (FN)
+  TP <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 1)
+  FP <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 1)
+  TN <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 0)
+  FN <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 0)
+  
+  # Calculate accuracy
+  accuracy <- (TP + TN) / (TP + FP + TN + FN)
+  
+  return(accuracy)
+}
+```
+
+```{r}
+# Calculate accuracy for your dataset
+accuracy <- calculate_accuracy(clas_out_dt, "class", "scored.class")
+
+# Print the accuracy
+cat("Accuracy:", accuracy, "\n")
+
+```
+
+
+## 4.  Accuracy and error rate
+
+### 4a. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the classification error rate of the predictions.
+
+```{r}
+calculate_classification_error_rate <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Positives (TP), False Positives (FP), True Negatives (TN), and False Negatives (FN)
+  TP <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 1)
+  FP <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 1)
+  TN <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 0)
+  FN <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 0)
+  
+  # Calculate classification error rate
+  error_rate <- (FP + FN) / (TP + FP + TN + FN)
+  
+  return(error_rate)
+}
+```
+
+```{r}
+# Calculate classification error rate for your dataset
+error_rate <- calculate_classification_error_rate(clas_out_dt, "class", "scored.class")
+
+# Print the error rate
+cat("Classification Error Rate:", error_rate, "\n")
+
+```
+
+### 4b. Verify that you get an accuracy and an error rate that sums to one.
+```{r}
+# Calculate accuracy and error rate for your dataset
+actual_column <- "class"
+predicted_column <- "scored.class"
+
+accuracy <- calculate_accuracy(clas_out_dt, actual_column, predicted_column)
+error_rate <- calculate_classification_error_rate(clas_out_dt, actual_column, predicted_column)
+
+# Check if accuracy and error rate sum to one
+total <- accuracy + error_rate
+
+cat("Accuracy:", accuracy, "\n")
+cat("Error Rate:", error_rate, "\n")
+cat("Total (Accuracy + Error Rate):", total, "\n")
+
+```
+The accuracy and error rate sum up to 1.
+
+## 5. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified,  and returns the precision of the predictions.
+
+```{r}
+calculate_precision <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Positives (TP) and False Positives (FP)
+  TP <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 1)
+  FP <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 1)
+  
+  # Calculate precision
+  precision <- TP / (TP + FP)
+  
+  return(precision)
+}
+```
+
+
+```{r}
+# Calculate precision for your dataset
+actual_column <- "class"
+predicted_column <- "scored.class"
+
+precision <- calculate_precision(clas_out_dt, actual_column, predicted_column)
+
+# Print the precision
+cat("Precision:", precision, "\n")
+```
+
+
+## 6. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the sensitivity of the predictions. Sensitivity is also known as recall.
+
+```{r}
+calculate_sensitivity <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Positives (TP) and False Negatives (FN)
+  TP <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 1)
+  FN <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 0)
+  
+  # Calculate sensitivity (recall)
+  sensitivity <- TP / (TP + FN)
+  
+  return(sensitivity)
+}
+```
+
+
+```{r}
+# Calculate sensitivity (recall) for your dataset
+actual_column <- "class"
+predicted_column <- "scored.class"
+
+sensitivity <- calculate_sensitivity(clas_out_dt, actual_column, predicted_column)
+
+# Print the sensitivity
+cat("Sensitivity (Recall):", sensitivity, "\n")
+```
+## 7. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the specificity of the predictions.
+
+```{r}
+calculate_specificity <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Negatives (TN) and False Positives (FP)
+  TN <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 0)
+  FP <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 1)
+  
+  # Calculate specificity
+  specificity <- TN / (TN + FP)
+  
+  return(specificity)
+}
+```
+
+```{r}
+# Calculate specificity for your dataset
+actual_column <- "class"
+predicted_column <- "scored.class"
+
+specificity <- calculate_specificity(clas_out_dt, actual_column, predicted_column)
+
+# Print the specificity
+cat("Specificity:", specificity, "\n")
+```
+
+## 8. Write a function that takes the data set as a dataframe, with actual and predicted classifications identified, and returns the F1 score of the predictions.
+
+```{r}
+calculate_f1_score <- function(data_frame, actual_column, predicted_column) {
+  # Calculate True Positives (TP), False Positives (FP), and False Negatives (FN)
+  TP <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 1)
+  FP <- sum(data_frame[[actual_column]] == 0 & data_frame[[predicted_column]] == 1)
+  FN <- sum(data_frame[[actual_column]] == 1 & data_frame[[predicted_column]] == 0)
+  
+  # Calculate Precision and Recall (Sensitivity)
+  precision <- TP / (TP + FP)
+  recall <- TP / (TP + FN)
+  
+  # Calculate F1 Score
+  f1_score <- 2 * (precision * recall) / (precision + recall)
+  
+  return(f1_score)
+}
+```
+
+```{r}
+# Calculate F1 Score for your dataset
+actual_column <- "class"
+predicted_column <- "scored.class"
+
+f1_score <- calculate_f1_score(clas_out_dt, actual_column, predicted_column)
+
+# Print the F1 Score
+cat("F1 Score:", f1_score, "\n")
+```
+
+## 9. What are the bounds on the F1 score? Show that the F1 score will always be between 0 and 1. (Hint: If 0 < 𝑎 < 1 and 0 < 𝑏 < 1 then 𝑎𝑏 < 𝑎.)
+
+The F1 score is bounded between 0 and 1, which can be demonstrated using the properties of precision and recall.
+
+First, precision (𝑎) and recall (𝑏) are both bounded between 0 and 1:
+
+- Precision (𝑎): 0 ≤ 𝑎 = TP / (TP + FP) ≤ 1
+- Recall (𝑏): 0 ≤ 𝑏 = TP / (TP + FN) ≤ 1
+
+The F1 score is calculated as the harmonic mean of precision and recall:
+
+F1 Score = 2 * (𝑎 * 𝑏) / (𝑎 + 𝑏)
+
+Since the product of two values between 0 and 1 (𝑎 and 𝑏) will also be between 0 and 1, and the sum of two values between 0 and 1 will be between 0 and 2, the F1 score will always be between 0 and 1.
+
+
+## 10. Write a function that generates an ROC curve from a data set with a true classification column (class in our example) and a probability column (scored.probability in our example). Your function should return a list that includes the plot of the ROC curve and a vector that contains the calculated area under the curve (AUC). Note that I recommend using a sequence of thresholds ranging from 0 to 1 at 0.01 intervals.
+
+```{r}
+generate_roc_curve_custom <- function(data_frame, actual_column, probability_column) {
+  # Extract the true labels and predicted probabilities
+  true_labels <- data_frame[[actual_column]]
+  predicted_probabilities <- data_frame[[probability_column]]
+  
+  # Create a sequence of threshold values from 0 to 1 at 0.01 intervals
+  thresholds <- seq(0, 1, by = 0.01)
+  
+  # Initialize vectors to store TPR and FPR values
+  tpr <- numeric(length(thresholds))
+  fpr <- numeric(length(thresholds))
+  
+  # Calculate TPR and FPR at each threshold
+  for (i in 1:length(thresholds)) {
+    threshold <- thresholds[i]
+    predicted_labels <- ifelse(predicted_probabilities >= threshold, 1, 0)
+    
+    # Calculate TP, TN, FP, FN
+    TP <- sum(predicted_labels == 1 & true_labels == 1)
+    TN <- sum(predicted_labels == 0 & true_labels == 0)
+    FP <- sum(predicted_labels == 1 & true_labels == 0)
+    FN <- sum(predicted_labels == 0 & true_labels == 1)
+    
+    # Calculate TPR and FPR
+    tpr[i] <- TP / (TP + FN)
+    fpr[i] <- FP / (FP + TN)
+  }
+  
+  # Plot the ROC curve
+  plot(fpr, tpr, type = "l", col = "blue", xlab = "False Positive Rate", ylab = "True Positive Rate", 
+       main = "ROC Curve")
+  
+  # Calculate the AUC (Area Under the Curve)
+  auc_value <- sum((tpr[-1] + tpr[-length(tpr)]) * (fpr[-1] - fpr[-length(fpr)])) / 2
+  
+  # Ensure AUC is positive
+  auc_value <- abs(auc_value)
+  
+  # Return the AUC value
+  return(auc_value)
+}
+
+```
+
+
+```{r}
+# Assuming clas_out_dt contains your data
+actual_column <- "class"
+probability_column <- "scored.probability"
+
+auc_value <- generate_roc_curve_custom(clas_out_dt, actual_column, probability_column)
+
+# Print the AUC value
+cat("AUC (Area Under the Curve):", abs(auc_value), "\n")
+```
+
+## 11. Use your created R functions and the provided classification output data set to produce all of the classification metrics discussed above.
+
+```{r}
+
+# Define column names
+actual_column <- "class"
+predicted_column <- "scored.class"
+probability_column <- "scored.probability"
+
+# Calculate accuracy
+accuracy <- calculate_accuracy(clas_out_dt, actual_column, predicted_column)
+cat("Accuracy:", accuracy, "\n")
+
+# Calculate classification error rate
+error_rate <- calculate_classification_error_rate(clas_out_dt, actual_column, predicted_column)
+cat("Classification Error Rate:", error_rate, "\n")
+
+# Calculate precision
+precision <- calculate_precision(clas_out_dt, actual_column, predicted_column)
+cat("Precision:", precision, "\n")
+
+# Calculate sensitivity (recall)
+sensitivity <- calculate_sensitivity(clas_out_dt, actual_column, predicted_column)
+cat("Sensitivity (Recall):", sensitivity, "\n")
+
+# Calculate specificity
+specificity <- calculate_specificity(clas_out_dt, actual_column, predicted_column)
+cat("Specificity:", specificity, "\n")
+
+# Calculate F1 score
+f1_score <- calculate_f1_score(clas_out_dt, actual_column, predicted_column)
+cat("F1 Score:", f1_score, "\n")
+```
+
+## 12. Investigate the caret package. In particular, consider the functions confusionMatrix, sensitivity, and specificity. Apply the functions to the data set. How do the results compare with your own functions?
+
+```{r}
+library(caret)
+confusionMatrix(as.factor(clas_out_dt$scored.class),
+                as.factor(clas_out_dt$class),
+                positive = '1')
+```
+We observe that various metrics such as Accuracy, Precision, Sensitivity and Specificity are the same using caret package as calculated using custom functions.
+
+## 13. Investigate the pROC package. Use it to generate an ROC curve for the data set. How do the results compare with your own functions.
+
+```{r}
+library(pROC)
+
+generate_roc_curve <- function(data_frame, actual_column, probability_column) {
+  
+  # Extract the true labels and predicted probabilities
+  true_labels <- data_frame[[actual_column]]
+  predicted_probabilities <- data_frame[[probability_column]]
+  
+  # Create an ROC curve
+  roc_curve <- roc(true_labels, predicted_probabilities)
+  
+  # Calculate the AUC (Area Under the Curve)
+  auc_value <- auc(roc_curve)
+  
+  # Plot the ROC curve
+  plot(roc_curve, main = "ROC Curve", print.auc = TRUE, auc.polygon = TRUE, grid = TRUE)
+  
+  # Return the ROC curve and AUC value
+  result <- list(roc_curve = roc_curve, auc = auc_value)
+  return(result)
+}
+
+```
+
+```{r}
+actual_column <- "class"
+probability_column <- "scored.probability"
+
+roc_result <- generate_roc_curve(clas_out_dt, actual_column, probability_column)
+
+# Access the ROC curve object and AUC value
+roc_curve <- roc_result$roc_curve
+auc_value <- roc_result$auc
+
+# Print the AUC value
+cat("AUC (Area Under the Curve):", auc_value, "\n")
+```
+
+We observe that pROC package AUC (0.850) is slightly different than what we got using the custom function (0.848). pROC package may have a more sophisticated and optimized implementation for ROC curve calculations, which has yielded slightly different results compared to a simple custom implementation.
