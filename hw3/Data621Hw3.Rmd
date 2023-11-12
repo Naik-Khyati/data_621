@@ -1,0 +1,490 @@
+---
+title: 'Data 621 Fall2023: Homework 3 (Group1)'
+subtitle: 'Crime Logistic Regression'
+author: 'Tage Singh, Jaya Veluri, Khyati Naik, Mahmud Hasan Al Raj'
+data: '11/10/2023'
+output:
+  html_document:  
+    theme: cerulean
+    highlight: pygments
+    css: Lab3.css
+    toc: true
+    toc_float: true
+  pdf_document:
+    extra_dependencies: ["geometry", "multicol", "multirow", "xcolor"]
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(MASS)
+library(rpart.plot)
+library(ggplot2)
+library(ggfortify)
+library(gridExtra)
+library(forecast)
+library(fpp2)
+library(fma)
+#library(kableExtra)
+library(e1071)
+library(mlbench)
+library(ggcorrplot)
+library(DataExplorer)
+library(timeDate)
+library(caret)
+library(GGally)
+library(corrplot)
+library(RColorBrewer)
+library(tibble)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(reshape2)
+library(mixtools)
+library(tidymodels)
+library(ggpmisc)
+library(regclass)
+library(pROC)
+```
+
+## Instructions
+
+### Overview
+
+In this homework assignment, you will explore, analyze, and model a data set containing information on crime for various neighborhoods of a major city. Each record has a response variable indicating whether or not the crime rate is above the median crime rate (1) or not (0).
+
+Your objective is to build a binary logistic regression model on the training data set to predict whether the neighborhood will be at risk for high crime levels. You will provide classifications and probabilities for the evaluation data set using your binary logistic regression model. You can only use the variables given to you (or variables that you derive from the variables provided). Below is a short description of the variables of interest in the data set:
+
+* `zn`: the proportion of residential land zoned for large lots (over 25000 square feet) (predictor variable)
+* `indus`: the proportion of non-retail business acres per suburb (predictor variable)
+* `chas`: a dummy var. for whether the suburb borders the Charles River (1) or not (0) (predictor variable)
+* `nox`: nitrogen oxides concentration (parts per 10 million) (predictor variable)
+* `rm`: average number of rooms per dwelling (predictor variable)
+* `age`: the proportion of owner-occupied units built prior to 1940 (predictor variable)
+* `dis`: weighted mean of distances to five Boston employment centers (predictor variable)
+* `rad`: index of accessibility to radial highways (predictor variable)
+* `tax`: full-value property-tax rate per $10,000 (predictor variable)
+* `ptratio`: pupil-teacher ratio by town (predictor variable)
+* `lstat`: lower status of the population (percent) (predictor variable)
+* `medv`: median value of owner-occupied homes in $1000s (predictor variable)
+* `target`: whether the crime rate is above the median crime rate (1) or not (0) (response variable)
+
+### Deliverables
+
+* A write-up submitted in PDF format. Your write-up should have four sections. Each one is described below. You may assume you are addressing me as a fellow data scientist, so do not need to shy away from technical details.
+* Assigned prediction (probabilities, classifications) for the evaluation data set. Use a 0.5 threshold.
+* Include your R statistical programming code in an Appendix.
+
+## Introduction
+
+Crime is a common concern in large cities, and denizens, policymakers, and law enforcement are interested in identifying locations where crime can or might occur. In this assignment, we are given a dataset for the city of Boston and will build a model to identify regions that might have higher or lower (against the median) crime. Since the goal is a binary (above or below median) response, this assignment will employ binary logistic regression.
+
+
+## 1. Data Exploration
+
+*Describe the size and the variables in the crime training data set. Consider that too much detail will cause a manager to lose interest while too little detail will make the manager consider that you aren’t doing your job. Some suggestions are given below. Please do NOT treat this as a checklist of things to do to complete the assignment. You should have your own thoughts on what to tell the boss. These are just ideas.*
+
+### Dataset
+It contains both a categorical target and provides some categorical features. The fact that we are provided with a categorical target turns the task from a regression task to a classification task, perfect for logistic regression. The data contains 12 features and 466 instances, with 40 instances reserved for an evaluation dataset with targets removed.
+
+There are two files provided:
+
+* **crime-training-data_modified.csv** - hold data from training a model
+* **crime-evaluation-data_modified.csv** - holdout data used for evaluation.  
+```{r}
+# Load crime dataset
+df <- read.csv('https://raw.githubusercontent.com/jayatveluri/Data621/main/crime-training-data_modified.csv')
+df_eval <- read.csv('https://raw.githubusercontent.com/jayatveluri/Data621/main/crime-evaluation-data_modified.csv')
+```
+### Summary Statistics
+```{r }
+summary(df)
+```
+The first observation is that we have no missing data (coded as NA's).
+
+we have some highly skewed features(where means are far from median, examples  variables `zn` and `tax) indicating a skewed distribution. Categorical variable `chas` is quite imbalanced, as over 75% of values are 0.
+
+
+### Check Class Bias
+We have two target values, `0` and `1`.  When building models, we ideally want an equal representation of both classes. 
+As class imbalance deviates, model performance will suffer form effects of differential variance between the classes and bias towards picking the more represented class.
+
+```{r}
+class_proportion = colMeans(df['target'])
+class_proportion
+
+```
+
+The classes are quite balanced, with approximately 51% `0`'s and 49% `1`'s
+
+### Distributions
+```{r}
+# Prepare data for ggplot
+gdata_df <- df %>% dplyr::select(-target) %>%
+  gather(key = 'variable', value = 'value')
+
+# Histogram plots of each variable
+ggplot(gdata_df) + 
+  geom_histogram(aes(x=value, y = ..density..), bins=30) + 
+  geom_density(aes(x=value), color='blue') +
+  facet_wrap(. ~variable, scales='free', ncol=3)
+```
+
+### Boxplots
+In addition to creating histogram distributions, we  use box-plots to get an idea of the spread of each variable
+```{r}
+# Prepare data for ggplot
+gdata_df <- df %>% dplyr::select(-target) %>%
+  gather(key = 'variable', value = 'value')
+
+# Boxplots for each variable
+ggplot(gdata_df, aes(variable, value)) + 
+  geom_boxplot() + 
+  facet_wrap(. ~variable, scales='free', ncol=6)
+```
+### Variable Plots
+
+Generate scatter plots of each variable versus the target variable to get an idea of the relationship between them. 
+
+```{r}
+# Plot scatter plots of each variable versus the target variable
+featurePlot(df[,1:ncol(df)-1], df[,ncol(df)], pch = 20)
+```
+
+### Missing Data
+
+we see no NAs, or missing data in the provided training dataset.
+
+```{r}
+missingdata <- colSums(df %>% sapply(is.na))
+missingdata_pct <- round(missingdata / nrow(df) * 100, 2)
+stack(sort(missingdata_pct, decreasing = TRUE))
+```
+
+```{r}
+clean_df <- df
+```
+### Target Correlations
+
+```{r}
+stack(sort(cor(df[,13], df[,1:ncol(df)-1])[,], decreasing=TRUE))
+```
+`nox`, `age`, `rad`, `tax`, and `indus` have the highest correlation (positive) with `target`
+
+```{r}
+correlation = cor(clean_df, use = 'pairwise.complete.obs')
+
+corrplot(correlation, 'ellipse', type = 'lower', order = 'hclust',
+         col=brewer.pal(n=8, name="RdYlBu"))
+```
+We can see that some variables are highly correlated with one another, such as `tax` and `rad`, with a correlation between .75 and 1. When we start considering features for our models, we'll need to account for the correlations between features and avoid including pairs with strong correlations.
+
+
+## 2. Data Preparation
+
+Summarize our data preparation and exploration
+
+### Removed Fields
+
+All the predictor variables have no missing values and show no indication of incomplete or incorrect data. As such, we have kept all the fields.
+
+### Missing Values
+
+The data had no missing values to remove.
+
+### Outliers
+
+No outliers were removed as all values seemed reasonable. 
+
+### Transform non-normal variables
+
+From our histogram plots, we can see that some of our variables are highly skewed. To address this, we decided to perform some transformations to make them more normally distributed. Here are some plots to demonstrate the changes in distributions before and after the transformations. 
+```{r}
+# created empty data frame to store transformed variables
+df_temp <- data.frame(matrix(ncol = 1, nrow = length(clean_df$target)))
+
+# performed boxcox transformation after identifying proper lambda
+df_temp$rm <- clean_df$rm
+rm_lambda <- BoxCox.lambda(clean_df$rm)
+df_temp$rm_transform <- BoxCox(clean_df$rm, rm_lambda)
+
+df_temp$nox <- clean_df$nox
+nox_lambda <- BoxCox.lambda(clean_df$nox)
+df_temp$nox_transform <- BoxCox(clean_df$nox, nox_lambda)
+
+df_temp$dis <- clean_df$dis
+df_temp$dis_transform <- log(clean_df$dis)
+
+df_temp$zn <- clean_df$zn
+df_temp$zn_transform <- log(clean_df$zn+1)
+
+df_temp$lstat <- clean_df$lstat
+df_temp$lstat_transform <- log(clean_df$lstat)
+
+df_temp$age <- clean_df$age
+df_temp$age_transform <- log(max(clean_df$age) + 1 - clean_df$age)
+
+df_temp$ptratio <- clean_df$ptratio
+df_temp$ptratio_transform <- log(max(clean_df$ptratio) + 1 - clean_df$ptratio)
+
+df_temp <- df_temp[, 2:15]
+
+
+```
+
+### Finalizing the dataset for model building 
+
+we can now add these into our `cl_df` dataframe and continue on to build our models.
+```{r}
+cl_df <- data.frame(cbind(clean_df,
+                        rm_transform = df_temp$rm_transform,
+                        nox_transform = df_temp$nox_transform,
+                        dis_transform = df_temp$dis_transform,
+                        zn_transform = df_temp$zn_transform,
+                        lstat_transform = df_temp$lstat_transform,
+                        age_transform = df_temp$age_transform,
+                        ptratio_transform = df_temp$ptratio_transform
+                        ))
+
+is.na(cl_df) <- sapply(cl_df, is.infinite)
+```
+## 3. Build Models
+
+*Using the training data, build at least three different binary logistic regression models, using different variables (or the same variables with different transformations). You may select the variables manually, use an approach such as Forward or Stepwise, use a different approach, or use a combination of techniques. Describe the techniques you used. If you manually selected a variable for inclusion into the model or exclusion into the model, indicate why this was done.* 
+*Be sure to explain how you can make inferences from the model, as well as discuss other relevant model output. Discuss the coefficients in the models, do they make sense? Are you keeping the model even though it is counter-intuitive? Why? The boss needs to know.* 
+
+### Model-building methodology  
+
+With Our Dataset cleaned we will build our logistic regression models.
+
+First, we decided to split our cleaned dataset into a training and testing set (80% training, 20% testing). This was necessary as the provided holdout evaluation dataset doesn't provide `target` values so we cannot measure our model performance against that dataset.  
+
+```{r}
+set.seed(123456)
+# utilizing one dataset for all four models
+cldfdataTrain <- createDataPartition(cl_df$target, p=0.8, list=FALSE)
+cldftraining <- cl_df[cldfdataTrain,]
+cldftesting <- cl_df[-cldfdataTrain,]
+```
+#### Model#1 *(non-transformed features)*
+
+Using our training dataset, we decided to run a binary logistic regression model that included all non-transformed features.
+
+```{r}
+model1 <- glm(target ~ zn + indus + chas + nox + rm + age + dis + rad + tax + ptratio + lstat + medv, data = cldftraining , family = binomial)
+summary(model1)
+```
+
+calculate *VIF scores* to measure the effects of collinearity as well as variable importance:
+
+```{r}
+print('VIF model1')
+VIF(model1)
+
+```
+#### Model#2 *(Transformed Features)*
+
+*Model #2* using our transformed features. 
+
+```{r}
+model2 <- glm(target ~ zn_transform + indus + chas + nox_transform + rm_transform + age_transform + dis_transform + rad + tax + ptratio_transform + lstat_transform + medv, data = cldftraining , family = binomial)
+summary(model2)
+```
+calculate *VIF scores* to measure the effects of collinearity as well as variable importance:
+```{r}
+print('VIF model2')
+VIF(model2)
+
+```
+#### Model#3 *(Stepwise-AIC on Model #1)*
+We use a *Stepwise AIC* on *Model #1* (model with non-transformed features) to pick which features were most relevant.
+```{r}
+model3 <- model1 %>% stepAIC(trace = FALSE)
+summary(model3)
+
+
+```
+calculate *VIF scores* to measure the effects of collinearity as well as variable importance:
+```{r}
+print('VIF model3')
+VIF(model3)
+
+```
+
+#### Model#4 *(Stepwise-AIC on Model #2)*
+
+we apply *Stepwise AIC* on *Model #2* (our model with transformed features) to pick which features were most relevant.
+
+```{r}
+model4 <- model2 %>% stepAIC(trace = FALSE)
+summary(model4)
+```
+calculate *VIF scores* to measure the effects of collinearity as well as variable importance:
+```{r}
+print('VIF model4')
+VIF(model4)
+
+```
+
+### Examining our model coefficients  
+
+Throughout our model-building process, we noticed that many of our model outputs yielded a few coefficient values that seemed to contradict our initial estimates. For instance, in *Model #1*:  
+
+**Positive values for coefficients that we'd expect to be negative**  
+
++ **age** - logically we thought that the higher the proportion of owner-occupied units built prior to 1940 would lead to a lower crime rate (historic homes with more property value)
++ **dis** - logically we thought that the higher the weighted mean value of distance to five Boston employment centers, the lower the crime rate (areas farther from employment centers indicated there is less of a need for them -- higher rates of employment) 
++ **medv** - logically we thought the higher the median value of owner-occupied homes in $1000s would lead to a lower crime rate
+
+
+This is a trend we saw throughout the four models that we built, although *Models #3* and *Model #4* were able to adjust for this better than our first two models -- we can likely attribute this phenomenon to multicollinearity. Since we noticed in our initial data exploration that many variables in the dataset were highly correlated with one another (i.e. `medv` and `zn`, `nox` and `indus`, `tax` and `rad`), this phenomenon likely is increasing the variance of the coefficient estimates, making them difficult to interpret (and in some cases such as the features listed above, they are switching the signs). This was also supported by our Variance Inflation Factor (VIF) tests, which showed high values for features such as [`medv` and `rn`]. In our final models (Models #3 and #4), we made sure to keep this in mind in order to get a better handle on our coefficients and reduce multicollinearity -- mainly, we removed certain variables that had high VIF scores through our stepwise selection process. 
+
+## 4. Model Selection & Analysis 
+
+*For the binary logistic regression model,  use a metric such as log-likelihood, AIC, ROC curve, etc.? Using the training data set, evaluate the binary logistic regression model based on (a) accuracy, (b) classification error rate, (c) precision, (d) sensitivity, (e) specificity, (f) F1 score, (g) AUC, and (h) confusion matrix. 
+Make predictions using the evaluation data set.*
+
+### Confusion Matrices
+*Model #1* Confusion Matrix:
+```{r}
+model1_glm_pred = ifelse(predict(model1, type = "link") > 0.5, "Yes", "No")
+
+cldftesting$model1 <- ifelse(predict.glm(model1, cldftesting, "response") >= 0.5, 1, 0)
+cm1 <- confusionMatrix(factor(cldftesting$model1), factor(cldftesting$target), "1")
+results <- tibble(Model = "Model #1", Accuracy=cm1$byClass[11], F1 = cm1$byClass[7],
+                  Deviance= model1$deviance, 
+                  R2 = 1 - model1$deviance / model1$null.deviance,
+                  AIC= model1$aic)
+cm1
+```
+*Model #2* Confusion Matrix:
+```{r}
+model2_glm_pred = ifelse(predict(model2, type = "link") > 0.5, "Yes", "No")
+
+cldftesting$model2 <- ifelse(predict.glm(model2, cldftesting, "response") >= 0.5, 1, 0)
+cm2 <- confusionMatrix(factor(cldftesting$model2), factor(cldftesting$target), "1")
+results <- rbind(results, tibble(Model = "Model #2", Accuracy=cm2$byClass[11], F1 = cm2$byClass[7],
+                  Deviance= model2$deviance, 
+                  R2 = 1 - model2$deviance / model2$null.deviance,
+                  AIC= model2$aic))
+cm2
+```
+
+*Model #3* Confusion Matrix:
+```{r}
+model3_glm_pred = ifelse(predict(model3, type = "link") > 0.5, "Yes", "No")
+
+cldftesting$model3 <- ifelse(predict.glm(model3, cldftesting,"response") >= 0.5, 1, 0)
+cm3 <- confusionMatrix(factor(cldftesting$model3), factor(cldftesting$target), "1")
+results <- rbind(results, tibble(Model = "Model #3", Accuracy=cm3$byClass[11], F1 = cm3$byClass[7],
+                  Deviance=model3$deviance, 
+                  R2 = 1 - model3$deviance / model3$null.deviance,
+                  AIC=model3$aic))
+cm3
+```
+
+*Model #4* Confusion Matrix:
+```{r}
+model4_glm_pred = ifelse(predict(model4, type = "link") > 0.5, "Yes", "No")
+
+cldftesting$model4 <- ifelse(predict.glm(model4, cldftesting,"response") >= 0.5, 1, 0)
+cm4 <- confusionMatrix(factor(cldftesting$model4), factor(cldftesting$target), "1")
+results <- rbind(results, tibble(Model = "Model #4", Accuracy=cm4$byClass[11], F1 = cm4$byClass[7],
+                  Deviance=model4$deviance, 
+                  R2 = 1 - model4$deviance / model4$null.deviance,
+                  AIC=model4$aic))
+cm4
+```
+
+### ROC Curves
+
+A Comparison of ROC Curves for each model, *Model #1* ... *Model #4*:
+
+```{r}
+print('Model #1 ROC Curve')
+roc(cldftesting[["target"]], cldftesting[["model1"]], plot = TRUE, legacy.axes = TRUE, print.auc = TRUE)
+
+print('Model #2 ROC Curve')
+roc(cldftesting[["target"]], cldftesting[["model2"]], plot = TRUE, legacy.axes = TRUE, print.auc = TRUE)
+
+print('Model #3 ROC Curve')
+roc(cldftesting[["target"]], cldftesting[["model3"]], plot = TRUE, legacy.axes = TRUE, print.auc = TRUE)
+
+print('Model #4 ROC Curve')
+roc(cldftesting[["target"]], cldftesting[["model4"]], plot = TRUE, legacy.axes = TRUE, print.auc = TRUE)
+```
+#### created empty data frame to store transformed variables
+
+```{r}
+
+df_temp_eval <- data.frame(matrix(ncol = 1, nrow = length(df_eval$medv)))
+
+# performed boxcox transformation after identifying proper lambda
+df_temp_eval$rm <- df_eval$rm
+rm_lambda <- BoxCox.lambda(df_eval$rm)
+df_temp_eval$rm_transform <- BoxCox(df_eval$rm, rm_lambda)
+
+df_temp_eval$nox <- df_eval$nox
+nox_lambda <- BoxCox.lambda(df_eval$nox)
+df_temp_eval$nox_transform <- BoxCox(df_eval$nox, nox_lambda)
+
+df_temp_eval$dis <- df_eval$dis
+df_temp_eval$dis_transform <- log(df_eval$dis)
+
+df_temp_eval$zn <- df_eval$zn
+df_temp_eval$zn_transform <- log(df_eval$zn+1)
+
+df_temp_eval$lstat <- df_eval$lstat
+df_temp_eval$lstat_transform <- log(df_eval$lstat)
+
+df_temp_eval$age <- df_eval$age
+df_temp_eval$age_transform <- log(max(df_eval$age) + 1 - df_eval$age)
+
+df_temp_eval$ptratio <- df_eval$ptratio
+df_temp_eval$ptratio_transform <- log(max(df_eval$ptratio) + 1 - df_eval$ptratio)
+
+df_temp_eval <- df_temp_eval[, 2:15]
+```
+
+#### Build dataframe with transformation
+
+```{r}
+df_eval <- data.frame(cbind(df_eval, 
+                        rm_transform = df_temp_eval$rm_transform,
+                        nox_transform = df_temp_eval$nox_transform,
+                        dis_transform = df_temp_eval$dis_transform,
+                        zn_transform = df_temp_eval$zn_transform,
+                        lstat_transform = df_temp_eval$lstat_transform,
+                        age_transform = df_temp_eval$age_transform,
+                        ptratio_transform = df_temp_eval$ptratio_transform
+                        ))
+
+is.na(df_eval) <- sapply(df_eval, is.infinite)
+```
+
+### Model Performance Summary
+
+The following table discusses each of the model performance metrics on the training dataset. These values indicate there is a minor improvement in model performance after applying transformations and selecting for significant parameters.  
+
+## Model of choice  
+
+Based on all of our models we gave the edge to* Model #2* and *Model #4*, given that they fit the data (Higher *$R^2$*, lower *AIC*, lower *deviance*) better than their counterparts. 
+
+Ultimately we chose **Model #4** as all thing equal (which they shared *accuracy*, *F-statistic*, and *McFaden R-squared*), it had a lower *AIC*, and therefore was a higher quality model. 
+
+
+
+
+
+## Predictions
+
+We apply **Model #4** to the holdout evaluation set to predict the targets. 
+
+
+```{r}
+eval_data <- df_eval %>% select(c(zn_transform, indus, chas, nox_transform, rm_transform, age_transform, dis_transform, rad, tax, ptratio_transform, lstat_transform, medv))
+predictions <- ifelse(predict(model4, eval_data, type = "link") > 0.5, 1, 0)
+df_eval['target'] <- predictions
+predictions
+```
+
