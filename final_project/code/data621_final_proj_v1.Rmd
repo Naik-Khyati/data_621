@@ -1,0 +1,178 @@
+---
+title: "Data 621 - Final Project"
+date: "Dec 17, 2023"
+---
+
+**Group Members**
+
+- Jaya Veluri
+- Khyati Naik
+- Mahmud Hasan
+- Tage Singh
+
+```{r,warning=FALSE}
+library(tidyverse)
+```
+### Read the data
+```{r}
+# URL and CSV file names
+url <- "https://raw.githubusercontent.com/Naik-Khyati/data_621/main/final_project/"
+csv_name <- "diabetes"
+
+# 1. Read the CSV files into data frames
+df <- read_csv(paste0(url, csv_name, ".csv"))
+glimpse(df)
+```
+### Perform exploratory data analysis
+
+```{r}
+# Summary Statistics
+summary_stats <- summary(df)
+print(summary_stats)
+```
+
+**Summary Statistics:**
+
+The summary statistics reveal a wide range of values for each variable. Notably, variables such as glucose, BMI, Insulin, and age exhibit considerable variability, which is crucial for understanding the dataset's diversity.
+
+```{r}
+# Histograms
+par(mfrow = c(3, 3))  # Create a 3x3 grid for subplots
+hist(df$Pregnancies, main = "Pregnancies", col = "lightblue", border = "black")
+hist(df$Glucose, main = "Glucose", col = "lightblue", border = "black")
+hist(df$BloodPressure, main = "Blood Pressure", col = "lightblue", border = "black")
+hist(df$SkinThickness, main = "Skin Thickness", col = "lightblue", border = "black")
+hist(df$Insulin, main = "Insulin", col = "lightblue", border = "black")
+hist(df$BMI, main = "BMI", col = "lightblue", border = "black")
+hist(df$DiabetesPedigreeFunction, main = "Diabetes Pedigree Function", col = "lightblue", border = "black")
+hist(df$Age, main = "Age", col = "lightblue", border = "black")
+hist(df$Outcome, main = "Outcome", col = "lightblue", border = "black")
+
+```
+
+**Histograms:**
+
+The histograms showcase the distribution patterns of each variable. For instance, pregnancies exhibit a right-skewed distribution, indicating a higher frequency of individuals with fewer pregnancies. 
+Similarly, variables Skin Thickness, Insulin, Diabetes Pedigree Function and Age are also right skewed.
+This information is valuable for assessing the prevalence of specific conditions.
+
+
+```{r}
+# Box Plots
+par(mfrow = c(2, 4))  # Create a 2x4 grid for subplots
+boxplot(Pregnancies ~ Outcome, data = df, main = "Pregnancies by Outcome")
+boxplot(Glucose ~ Outcome, data = df, main = "Glucose by Outcome")
+boxplot(BloodPressure ~ Outcome, data = df, main = "Blood Pressure by Outcome")
+boxplot(SkinThickness ~ Outcome, data = df, main = "Skin Thickness by Outcome")
+boxplot(Insulin ~ Outcome, data = df, main = "Insulin by Outcome")
+boxplot(BMI ~ Outcome, data = df, main = "BMI by Outcome")
+boxplot(DiabetesPedigreeFunction ~ Outcome, data = df, main = "Diabetes Pedigree Function by Outcome")
+boxplot(Age ~ Outcome, data = df, main = "Age by Outcome")
+
+```
+
+**Box Plots:**
+
+Box plots highlight potential differences in variable distributions based on diabetes status. Notably, the box plot for glucose, pregnancies and age suggests higher median values for individuals with diabetes, indicating a potential feature for predictive modeling.
+
+**Outliers:**
+
+Identification of outliers, particularly in variables like insulin and DiabetesPedigreeFunction, is critical. Outliers may influence model performance, and their impact should be carefully considered during preprocessing.
+
+
+```{r}
+library(corrplot)
+
+# Compute correlation matrices for each group
+cor_matrix <- cor(df[, c('Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age','Outcome')])
+
+# Plot correlation matrices side by side
+par(mfrow = c(1, 2))
+
+# correlation Plot
+corrplot(cor_matrix, method = "color", title = "Correlation Plot")
+```
+
+```{r}
+# Compute correlation matrix for all variables
+cor_matrix <- cor(df[, c('Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age', 'Outcome')])
+
+# Identify max  values in the correlation matrix
+max_values <- apply(cor_matrix, 2, function(x) max(x[x != 1], na.rm = TRUE))
+
+# Print max values
+cat("Max correlation values (excluding 1):\n")
+print(max_values)
+```
+
+**Correlation Matrix:**
+
+A high positive correlation between **'Glucose' and 'Outcome'** indicates that individuals with higher glucose levels are more likely to have diabetes ('Outcome' equal to 1). This aligns with the medical understanding that elevated glucose levels are a significant risk factor for diabetes.
+
+A high positive correlation between **'Pregnancies' and 'Age'** suggests that as the number of pregnancies increases, the age of individuals tends to increase as well. This correlation aligns with common life experiences, as older individuals typically have a higher likelihood of having more pregnancies over their lifetime.
+
+A high positive correlation between **'SkinThickness' and 'Insulin'** suggests that individuals with thicker skin tend to have higher levels of insulin in their blood. While this correlation is observed, it's important to note that a causal relationship cannot be inferred from correlation alone. Further investigation and domain knowledge are required to understand the biological context of this relationship.
+
+**The correlation matrix serves as a valuable tool to identify potential multicollinearity and informs subsequent steps in model building and feature selection.**
+
+
+```{r}
+# Scatter plots
+pairs(df[, c('Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age')],
+      pch = 16, col = df$Outcome + 1)
+```
+
+**Scatter Plot:**
+
+BMI-Glucose Relationship: The scatter plot for 'Glucose' and 'BMI' may reveal a positive trend, indicating a potential association between higher glucose levels and elevated BMI. Examining color-coded points by 'Outcome' allows for the assessment of diabetes-related patterns within this relationship.
+
+Age-Pregnancies Insight: Scatter plots for 'Age' and 'Pregnancies' can provide insights into whether older individuals tend to have a higher number of pregnancies. Exploring these patterns assists in understanding demographic factors that might influence diabetes risk.
+
+Outcome-Based Patterns: By examining scatter plots with color-coded points based on 'Outcome,' distinctive patterns or clusters may emerge, indicating potential predictive power of certain variables. Identifying outliers within these plots is crucial for understanding data anomalies and ensuring robust model performance.
+
+
+
+**Exploratory data analysis results underscore the need for data preprocessing steps. Handling outliers, scaling, and potential feature engineering are essential to enhance the performance and interpretability of predictive models.**
+
+### Data Preprocessing:
+
+```{r}
+# Handling Outliers
+winsorize <- function(x, trim=0.05) {
+  q <- quantile(x, c(trim, 1-trim), na.rm = TRUE)
+  x[x < q[1]] <- q[1]
+  x[x > q[2]] <- q[2]
+  return(x)
+}
+
+# Apply winsorization to selected variables (e.g., 'Insulin')
+df$Insulin <- winsorize(df$Insulin)
+
+# Apply winsorization to 'DiabetesPedigreeFunction'
+df$DiabetesPedigreeFunction <- winsorize(df$DiabetesPedigreeFunction)
+
+# Scaling Numeric Variables (using Min-Max scaling as an example)
+min_max_scaling <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
+}
+
+# Apply Min-Max scaling to numeric variables
+numeric_vars <- c('Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age')
+df[numeric_vars] <- lapply(df[numeric_vars], min_max_scaling)
+
+# Potential Feature Engineering (Creating a new feature, e.g., BMI category)
+df$BMICategory <- cut(df$BMI, breaks = c(0, 18.5, 24.9, 29.9, Inf), labels = c("Underweight", "Normal", "Overweight", "Obese"))
+
+# Checking the modified dataframe
+head(df)
+
+```
+
+**Outlier Handling:**
+Outliers, particularly in the 'Insulin' and 'DiabetesPedigreeFunction'  variable, were addressed using winsorization. This technique replaced extreme values in 'Insulin' with values within a specified quantile range, mitigating the influence of outliers on model performance. This step ensures the robustness of the predictive model to extreme data points.
+
+**Scaling Numeric Variables:**
+Min-Max scaling was applied to numeric variables, including 'Pregnancies,' 'Glucose,' 'BloodPressure,' 'SkinThickness,' 'Insulin,' 'BMI,' 'DiabetesPedigreeFunction,' and 'Age.' Scaling these variables to a common range (typically between 0 and 1) helps prevent certain features from dominating others during modeling, ensuring a fair contribution from each variable.
+
+**Feature Engineering:**
+A new feature, 'BMICategory,' was introduced by categorizing BMI values into specific ranges ('Underweight,' 'Normal,' 'Overweight,' 'Obese'). This categorical representation provides a simplified view of BMI, potentially capturing non-linear relationships with the outcome variable and aiding model interpretability.
